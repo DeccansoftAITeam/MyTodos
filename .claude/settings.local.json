@@ -7,7 +7,8 @@
       "PowerShell(D:\\\\MyTodos\\\\backend\\\\myvenv\\\\Scripts\\\\pip list)",
       "PowerShell(D:\\\\MyTodos\\\\backend\\\\myvenv\\\\Scripts\\\\python -c \"from fastapi.testclient import TestClient; print\\('TestClient available'\\)\")",
       "PowerShell(Get-ChildItem -Path \"D:\\\\MyTodos\" -Recurse -File | Where-Object { $_.Extension -in \".py\", \".txt\", \".cfg\", \".toml\", \".ini\" } | Select-Object FullName)",
-      "Bash(myvenv\\\\Scripts\\\\pip install *)"
+      "Bash(myvenv\\\\Scripts\\\\pip install *)",
+      "Bash(myvenv\\\\Scripts\\\\pytest.exe test_main.py -v)"
     ]
   }
 }
