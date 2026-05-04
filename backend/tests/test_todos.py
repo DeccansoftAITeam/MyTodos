@@ -1,28 +1,47 @@
 import pytest
-import main
 from fastapi.testclient import TestClient
-from main import app
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-client = TestClient(app)
+from main import app
+from database import Base, get_db
 
 
 @pytest.fixture(autouse=True)
-def reset_state():
-    main.todos.clear()
-    main.next_id = 1
+def reset_db():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+    def override_get_db():
+        db = TestSession()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
     yield
+    Base.metadata.drop_all(bind=engine)
+    app.dependency_overrides.clear()
+
+
+client = TestClient(app)
 
 
 # --- GET /health ---
 
 def test_health_returns_200():
-    r = client.get("/health")
-    assert r.status_code == 200
+    assert client.get("/health").status_code == 200
 
 
 def test_health_returns_ok_body():
-    r = client.get("/health")
-    assert r.json() == {"status": "ok"}
+    assert client.get("/health").json() == {"status": "ok"}
 
 
 # --- GET /todos ---
@@ -36,8 +55,7 @@ def test_get_todos_empty():
 def test_get_todos_returns_all():
     client.post("/todos", json={"title": "First"})
     client.post("/todos", json={"title": "Second"})
-    r = client.get("/todos")
-    assert len(r.json()) == 2
+    assert len(client.get("/todos").json()) == 2
 
 
 def test_get_todos_shape():
@@ -50,33 +68,26 @@ def test_get_todos_shape():
 
 def test_get_todos_completed_default_false():
     client.post("/todos", json={"title": "New"})
-    item = client.get("/todos").json()[0]
-    assert item["completed"] is False
+    assert client.get("/todos").json()[0]["completed"] is False
 
 
 # --- POST /todos ---
 
 def test_create_todo_returns_201():
-    r = client.post("/todos", json={"title": "Buy milk"})
-    assert r.status_code == 201
+    assert client.post("/todos", json={"title": "Buy milk"}).status_code == 201
 
 
 def test_create_todo_returns_correct_shape():
-    r = client.post("/todos", json={"title": "Buy milk"})
-    body = r.json()
-    assert "id" in body
-    assert "title" in body
-    assert "completed" in body
+    body = client.post("/todos", json={"title": "Buy milk"}).json()
+    assert "id" in body and "title" in body and "completed" in body
 
 
 def test_create_todo_title_is_preserved():
-    r = client.post("/todos", json={"title": "Buy milk"})
-    assert r.json()["title"] == "Buy milk"
+    assert client.post("/todos", json={"title": "Buy milk"}).json()["title"] == "Buy milk"
 
 
 def test_create_todo_completed_is_false():
-    r = client.post("/todos", json={"title": "Buy milk"})
-    assert r.json()["completed"] is False
+    assert client.post("/todos", json={"title": "Buy milk"}).json()["completed"] is False
 
 
 def test_create_todo_id_increments():
@@ -86,75 +97,64 @@ def test_create_todo_id_increments():
 
 
 def test_create_todo_missing_title_returns_422():
-    r = client.post("/todos", json={})
-    assert r.status_code == 422
+    assert client.post("/todos", json={}).status_code == 422
 
 
 # --- PUT /todos/{todo_id} ---
 
 def test_update_todo_returns_200():
     todo_id = client.post("/todos", json={"title": "Original"}).json()["id"]
-    r = client.put(f"/todos/{todo_id}", json={"title": "Updated"})
-    assert r.status_code == 200
+    assert client.put(f"/todos/{todo_id}", json={"title": "Updated"}).status_code == 200
 
 
 def test_update_title_only():
     todo_id = client.post("/todos", json={"title": "Original"}).json()["id"]
-    r = client.put(f"/todos/{todo_id}", json={"title": "Changed"})
-    body = r.json()
+    body = client.put(f"/todos/{todo_id}", json={"title": "Changed"}).json()
     assert body["title"] == "Changed"
     assert body["completed"] is False
 
 
 def test_update_completed_only():
     todo_id = client.post("/todos", json={"title": "Original"}).json()["id"]
-    r = client.put(f"/todos/{todo_id}", json={"completed": True})
-    body = r.json()
+    body = client.put(f"/todos/{todo_id}", json={"completed": True}).json()
     assert body["completed"] is True
     assert body["title"] == "Original"
 
 
 def test_update_both_fields():
     todo_id = client.post("/todos", json={"title": "Original"}).json()["id"]
-    r = client.put(f"/todos/{todo_id}", json={"title": "New", "completed": True})
-    body = r.json()
-    assert body["title"] == "New"
-    assert body["completed"] is True
+    body = client.put(f"/todos/{todo_id}", json={"title": "New", "completed": True}).json()
+    assert body["title"] == "New" and body["completed"] is True
 
 
 def test_update_empty_body_no_change():
     todo_id = client.post("/todos", json={"title": "Original"}).json()["id"]
-    r = client.put(f"/todos/{todo_id}", json={})
-    body = r.json()
+    body = client.put(f"/todos/{todo_id}", json={}).json()
     assert body["title"] == "Original"
     assert body["completed"] is False
 
 
 def test_update_nonexistent_id_returns_404():
-    r = client.put("/todos/9999", json={"title": "Ghost"})
-    assert r.status_code == 404
+    assert client.put("/todos/9999", json={"title": "Ghost"}).status_code == 404
 
 
 def test_update_returns_updated_todo_on_get():
     todo_id = client.post("/todos", json={"title": "Original"}).json()["id"]
     client.put(f"/todos/{todo_id}", json={"title": "Updated", "completed": True})
     items = client.get("/todos").json()
-    assert items[0]["title"] == "Updated"
-    assert items[0]["completed"] is True
+    assert items[0]["title"] == "Updated" and items[0]["completed"] is True
 
 
 # --- DELETE /todos/{todo_id} ---
 
 def test_delete_todo_returns_204():
     todo_id = client.post("/todos", json={"title": "To delete"}).json()["id"]
-    r = client.delete(f"/todos/{todo_id}")
-    assert r.status_code == 204
+    assert client.delete(f"/todos/{todo_id}").status_code == 204
 
 
 def test_delete_response_body_is_empty():
     todo_id = client.post("/todos", json={"title": "To delete"}).json()["id"]
-    r = client.delete(f"/todos/{todo_id}")
-    assert r.content == b""
+    assert client.delete(f"/todos/{todo_id}").content == b""
 
 
 def test_delete_removes_from_list():
@@ -164,8 +164,7 @@ def test_delete_removes_from_list():
 
 
 def test_delete_nonexistent_id_returns_404():
-    r = client.delete("/todos/9999")
-    assert r.status_code == 404
+    assert client.delete("/todos/9999").status_code == 404
 
 
 def test_delete_only_removes_target():
@@ -173,5 +172,4 @@ def test_delete_only_removes_target():
     id2 = client.post("/todos", json={"title": "Remove"}).json()["id"]
     client.delete(f"/todos/{id2}")
     items = client.get("/todos").json()
-    assert len(items) == 1
-    assert items[0]["id"] == id1
+    assert len(items) == 1 and items[0]["id"] == id1
