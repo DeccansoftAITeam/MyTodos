@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 
 app = FastAPI()
 
@@ -32,7 +32,11 @@ def health_check() -> dict:
 
 
 @app.get("/todos")
-def get_todos() -> list[dict]:
+def get_todos(status: Literal["all", "pending", "completed"] = "all") -> list[dict]:
+    if status == "completed":
+        return [t for t in todos if t["completed"]]
+    if status == "pending":
+        return [t for t in todos if not t["completed"]]
     return todos
 
 

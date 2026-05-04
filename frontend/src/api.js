@@ -1,7 +1,7 @@
 const BASE_URL = 'http://localhost:8000';
 
-export async function getTodos() {
-  const res = await fetch(`${BASE_URL}/todos`);
+export async function getTodos(status = "all") {
+  const res = await fetch(`${BASE_URL}/todos?status=${status}`);
   return res.json();
 }
 
