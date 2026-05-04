@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from database import Base
 
 
@@ -18,16 +18,16 @@ class Todo(Base):
 
 
 class TodoCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    category: Optional[str] = None
+    title: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    category: Optional[str] = Field(default=None, max_length=100)
 
 
 class TodoUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
     completed: Optional[bool] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=1000)
+    category: Optional[str] = Field(default=None, max_length=100)
 
 
 class TodoResponse(BaseModel):

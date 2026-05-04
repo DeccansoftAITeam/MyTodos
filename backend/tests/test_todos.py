@@ -173,3 +173,79 @@ def test_delete_only_removes_target():
     client.delete(f"/todos/{id2}")
     items = client.get("/todos").json()
     assert len(items) == 1 and items[0]["id"] == id1
+
+
+# --- GET /todos?status= filter ---
+
+def test_get_todos_status_completed_returns_only_completed():
+    done_id = client.post("/todos", json={"title": "Done"}).json()["id"]
+    client.post("/todos", json={"title": "Pending"})
+    client.put(f"/todos/{done_id}", json={"completed": True})
+    items = client.get("/todos?status=completed").json()
+    assert len(items) == 1
+    assert items[0]["title"] == "Done"
+    assert items[0]["completed"] is True
+
+
+def test_get_todos_status_pending_returns_only_pending():
+    done_id = client.post("/todos", json={"title": "Done"}).json()["id"]
+    client.post("/todos", json={"title": "Pending"})
+    client.put(f"/todos/{done_id}", json={"completed": True})
+    items = client.get("/todos?status=pending").json()
+    assert len(items) == 1
+    assert items[0]["title"] == "Pending"
+    assert items[0]["completed"] is False
+
+
+def test_get_todos_status_all_returns_everything():
+    done_id = client.post("/todos", json={"title": "Done"}).json()["id"]
+    client.post("/todos", json={"title": "Pending"})
+    client.put(f"/todos/{done_id}", json={"completed": True})
+    assert len(client.get("/todos?status=all").json()) == 2
+
+
+# --- New schema fields: description, category, created_at ---
+
+def test_create_todo_with_description_roundtrip():
+    body = client.post("/todos", json={"title": "T", "description": "Some details"}).json()
+    assert body["description"] == "Some details"
+
+
+def test_create_todo_description_defaults_to_none():
+    assert client.post("/todos", json={"title": "T"}).json()["description"] is None
+
+
+def test_create_todo_with_category_roundtrip():
+    body = client.post("/todos", json={"title": "T", "category": "work"}).json()
+    assert body["category"] == "work"
+
+
+def test_create_todo_category_defaults_to_none():
+    assert client.post("/todos", json={"title": "T"}).json()["category"] is None
+
+
+def test_create_todo_response_includes_created_at():
+    body = client.post("/todos", json={"title": "T"}).json()
+    assert "created_at" in body and body["created_at"] is not None
+
+
+def test_update_description_via_put():
+    todo_id = client.post("/todos", json={"title": "T"}).json()["id"]
+    body = client.put(f"/todos/{todo_id}", json={"description": "Added later"}).json()
+    assert body["description"] == "Added later"
+
+
+def test_update_category_via_put():
+    todo_id = client.post("/todos", json={"title": "T"}).json()["id"]
+    body = client.put(f"/todos/{todo_id}", json={"category": "personal"}).json()
+    assert body["category"] == "personal"
+
+
+# --- Validation ---
+
+def test_create_todo_title_too_long_returns_422():
+    assert client.post("/todos", json={"title": "x" * 256}).status_code == 422
+
+
+def test_create_todo_empty_title_returns_422():
+    assert client.post("/todos", json={"title": ""}).status_code == 422
