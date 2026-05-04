@@ -96,6 +96,32 @@
   background: #c0392b;
 }
 
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.btn-filter {
+  padding: 6px 14px;
+  background: #f0f0f0;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.btn-filter:hover {
+  background: #e0e0e0;
+}
+
+.btn-filter.active {
+  background: #4a90e2;
+  color: #fff;
+  border-color: #4a90e2;
+}
+
 .empty-message {
   color: #999;
   text-align: center;

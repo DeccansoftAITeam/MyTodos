@@ -2,18 +2,21 @@ import { useState, useEffect } from 'react';
 import { getTodos, createTodo } from './api.js';
 import TodoItem from './TodoItem.jsx';
 
+const FILTERS = ['all', 'pending', 'completed'];
+
 export default function TodoList() {
   const [todos, setTodos] = useState([]);
   const [inputValue, setInputValue] = useState('');
+  const [filter, setFilter] = useState('all');
 
-  async function fetchTodos() {
-    const data = await getTodos();
+  async function fetchTodos(status = filter) {
+    const data = await getTodos(status);
     setTodos(data);
   }
 
   useEffect(() => {
-    fetchTodos();
-  }, []);
+    fetchTodos(filter);
+  }, [filter]);
 
   async function handleAdd() {
     const title = inputValue.trim();
@@ -39,6 +42,17 @@ export default function TodoList() {
           onKeyDown={handleKeyDown}
         />
         <button className="btn-add" onClick={handleAdd}>Add</button>
+      </div>
+      <div className="filter-tabs">
+        {FILTERS.map((f) => (
+          <button
+            key={f}
+            className={`btn-filter${filter === f ? ' active' : ''}`}
+            onClick={() => setFilter(f)}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
       </div>
       {todos.length === 0 ? (
         <p className="empty-message">No todos yet. Add one above!</p>
